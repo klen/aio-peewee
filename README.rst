@@ -73,17 +73,58 @@ Usage
 Initialization
 --------------
 
-TODO
+.. code:: python
+
+   from aiopeewee import PostgresqlDatabaseAsync, SqliteDatabaseAsync, MySQLDatabaseAsync, CockroachDatabaseAsync
+
+    db = MySQLDatabase('my_app', user='app', password='db_password', host='10.1.0.8', port=3306)
+
+
+Async Connect/Close
+-------------------
+
+.. code:: python
+
+   # Manual
+   async def main():
+        await db.connect_async()
+        # ...
+        await db.close_async()
+
+    # Context manager
+   async def main():
+        async with db:
+            # ...
+
 
 Connection Pooling
 ------------------
 
-TODO
+.. code:: python
+
+   from aiopeewee import PooledPostgresqlDatabaseAsync, PooledSqliteDatabaseAsync, PooledMySQLDatabaseAsync, PooledCockroachDatabaseAsync
+
+   db = PooledPostgresqlDatabase('my_database', max_connections=8, stale_timeout=300, user='postgres')
+
 
 Database URL
 ------------
 
-TODO
+.. code:: python
+
+   from aiopeewee import db_url
+
+    db0 = db_url.connect('cockroachdb+async://localhost/db', **db_params)
+    db1 = db_url.connect('cockroachdb+pool+async://localhost/db', **db_params)
+    db2 = db_url.connect('mysql+async://localhost/db', **db_params)
+    db3 = db_url.connect('mysql+pool+async://localhost/db', **db_params)
+    db4 = db_url.connect('postgres+async://localhost/db', **db_params)
+    db5 = db_url.connect('postgres+pool+async://localhost/db', **db_params)
+    db6 = db_url.connect('sqlite+async://localhost/db', **db_params)
+    db7 = db_url.connect('sqlite+pool+async://localhost/db', **db_params)
+    db8 = db_url.connect('sqliteexc+async://localhost/db', **db_params)
+    db9 = db_url.connect('sqliteexc+pool+async://localhost/db', **db_params)
+
 
 
 .. _bugtracker:
