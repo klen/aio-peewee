@@ -64,8 +64,8 @@ async def test_basic():
     assert isinstance(db, SqliteDatabaseAsync)
     assert isinstance(db._state, _AsyncConnectionState)
 
-    c1 = await db.connect_async()
-    c2 = await db.connect_async()
+    c1 = await db.connect_async(True)
+    c2 = await db.connect_async(True)
     assert c1 is c2
     assert db._state.conn
 
@@ -80,12 +80,17 @@ async def test_basic():
 async def test_pool():
     from aiopeewee import db_url, PooledSqliteDatabaseAsync, pool
 
-    db = db_url.connect('sqlite+pool+async:///:memory:', max_connections=2, timeout=.1)
+    db = db_url.connect('sqlite+pool+async:///:memory:', max_connections=3, timeout=.1)
     assert db
     assert isinstance(db, PooledSqliteDatabaseAsync)
 
+    db.connect()
+    c0 = db.connection()
+
     c1 = await aio.create_task(db.connect_async())
+    assert c1 is not c0
     c2 = await aio.create_task(db.connect_async())
+    assert c2 is not c0
     assert c1 is not c2
 
     with pytest.raises(pool.MaxConnectionsExceeded):
@@ -108,6 +113,20 @@ async def test_pool():
 
     connects = await aio.gather(connect(), connect(), connect(), connect(), connect())
     assert all(connects)
+
+
+@pytest.mark.asyncio
+async def test_sqlite():
+    from aiopeewee import db_url
+
+    db = db_url.connect('sqlite+async:///:memory:')
+
+    async def middleware():
+        async with db:
+            return db.execute_sql('select 42').fetchone()
+
+    res, = await aio.Task(middleware())
+    assert res == 42
 
 
 @pytest.mark.asyncio

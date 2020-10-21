@@ -11,10 +11,10 @@ from playhouse.sqlite_ext import SqliteExtDatabase
 version = "0.0.4"
 
 _ctx = {
-    'closed': ContextVar('closed'),
-    'conn': ContextVar('conn'),
-    'ctx': ContextVar('ctx'),
-    'transactions': ContextVar('transactions'),
+    'closed': ContextVar('closed', default=None),
+    'conn': ContextVar('conn', default=None),
+    'ctx': ContextVar('ctx', default=None),
+    'transactions': ContextVar('transactions', default=None),
 }
 
 
@@ -36,8 +36,7 @@ class DatabaseAsync:
         super(DatabaseAsync, self).init(database, **kwargs)
 
     async def __aenter__(self):
-        if self.is_closed():
-            await self.connect_async()
+        await self.connect_async(reuse_if_open=True)
         super().__enter__()
         return self
 
@@ -49,15 +48,19 @@ class DatabaseAsync:
             if not self._state.ctx:
                 await self.close_async()
 
-    async def connect_async(self):
-        """Catch a connection asyncrounosly."""
+    async def connect_async(self, reuse_if_open=False):
+        """Get a connection."""
+        if not reuse_if_open:
+            self._state.reset()
+
         if self.is_closed():
             async with self._aiolock:
                 self.connect()
+
         return self._state.conn
 
     async def close_async(self):
-        """Close the current connection asyncrounosly."""
+        """Close the current connection."""
         async with self._aiolock:
             return self.close()
 
@@ -68,7 +71,7 @@ class PooledDatabaseAsync(DatabaseAsync):
         self._waiters = deque()
         super(PooledDatabaseAsync, self).init(database, **kwargs)
 
-    async def connect_async(self):
+    async def connect_async(self, reuse_if_open=False):
         """Catch a connection asyncrounosly."""
         if len(self._in_use) >= self._max_connections:
             fut = aio.Future()
@@ -82,10 +85,10 @@ class PooledDatabaseAsync(DatabaseAsync):
                 raise pool.MaxConnectionsExceeded(
                     'Max connections exceeded, timed out attempting to connect.')
 
-        return await super().connect_async()
+        return await super().connect_async(reuse_if_open=reuse_if_open)
 
-    def _close(self, *args, **kwargs):
-        super(PooledDatabaseAsync, self)._close(*args, **kwargs)
+    def _close(self, conn, close_conn=False):
+        super(PooledDatabaseAsync, self)._close(conn, close_conn=close_conn)
         try:
             waiter = self._waiters.popleft()
             waiter.set_result(True)
