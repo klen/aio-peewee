@@ -10,7 +10,7 @@ from playhouse import db_url, pool, cockroachdb as crdb
 from playhouse.sqlite_ext import SqliteExtDatabase
 
 
-version = "0.0.5"
+version = "0.0.6"
 
 _ctx = {
     'closed': ContextVar('closed', default=None),
