@@ -1,3 +1,5 @@
+"""Support Peewee ORM with asyncio."""
+
 import asyncio as aio
 from contextvars import ContextVar
 from collections import deque
@@ -28,19 +30,23 @@ class _AsyncConnectionState(pw._ConnectionState):
 
 
 class DatabaseAsync:
+    """Base interface for async databases."""
 
     def init(self, database, **kwargs):
+        """Initialize the state."""
         self._state = _AsyncConnectionState()
         self._lock = pw._NoopLock()
         self._aiolock = aio.Lock()
         super(DatabaseAsync, self).init(database, **kwargs)
 
     async def __aenter__(self):
+        """Enter to async context."""
         await self.connect_async(reuse_if_open=True)
         super().__enter__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit from async context."""
         ctx = self._state.ctx.pop()
         try:
             ctx.__exit__(exc_type, exc_val, exc_tb)
@@ -66,8 +72,10 @@ class DatabaseAsync:
 
 
 class PooledDatabaseAsync(DatabaseAsync):
+    """Base integface for async databases with connection pooling."""
 
     def init(self, database, **kwargs):
+        """Prepare the pool."""
         self._waiters = deque()
         super(PooledDatabaseAsync, self).init(database, **kwargs)
 
@@ -146,3 +154,56 @@ db_url.schemes['sqlite+async'] = SqliteDatabaseAsync
 db_url.schemes['sqlite+pool+async'] = PooledSqliteDatabaseAsync
 db_url.schemes['sqliteexc+async'] = SqliteExtDatabaseAsync
 db_url.schemes['sqliteexc+pool+async'] = PooledSqliteExtDatabaseAsync
+
+
+class PeeweeASGIPlugin:
+    """Support ASGI applications."""
+
+    defaults = {
+        'url': 'sqlite+async:///db.sqlite',
+        'connection_params': {},
+    }
+
+    def __init__(self, **options):
+        """Initialize the plugin."""
+        self.config = dict(self.defaults, *options)
+        self.models = {}
+        self.database = db_url.connect(
+            self.config['url'], **self.config['connection_params'])
+
+    async def shutdown(self):
+        """Shutdown the database."""
+        if hasattr(self.database, 'close_all'):
+            self.database.close_all()
+
+    def middleware(self, app):
+        """Manage DB connections."""
+
+        async def process(scope, receive, send):
+            try:
+                await self.database.connect_async()
+                return await app(scope, receive, send)
+
+            finally:
+                await self.database.close_async()
+
+        return process
+
+    def register(self, cls):
+        """A decorator to register models with the plugin."""
+        if issubclass(cls, pw.Model):
+            self.models[cls._meta.table_name] = cls
+
+        cls._meta.database = self.database
+
+        return cls
+
+    def conftest(self):
+        """Integration with tests."""
+        for model in self.models.values():
+            try:
+                model.create_table()
+            except pw.OperationalError:
+                pass
+
+# pylama: ignore=D

@@ -77,7 +77,7 @@ Initialization
 
    from aiopeewee import PostgresqlDatabaseAsync, SqliteDatabaseAsync, MySQLDatabaseAsync, CockroachDatabaseAsync
 
-    db = MySQLDatabase('my_app', user='app', password='db_password', host='10.1.0.8', port=3306)
+    db = PostgresqlDatabaseAsync('my_app', user='app', password='db_password', host='10.1.0.8', port=3306)
 
 
 Async Connect/Close
