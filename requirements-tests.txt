@@ -1,5 +1,0 @@
-pytest
-pytest-asyncio
-peewee          > 3
-
--e .

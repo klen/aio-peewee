@@ -44,8 +44,17 @@ upload: clean
 	@python setup.py bdist_wheel
 	@twine upload dist/*
 
+$(VIRTUAL_ENV): setup.cfg
+	@[ -d $(VIRTUAL_ENV) ] || python -m venv $(VIRTUAL_ENV)
+	@$(VIRTUAL_ENV)/bin/pip install -e .[test]
+	@touch $(VIRTUAL_ENV)
 
 .PHONY: test
-test t:
-	@pip install -r requirements-tests.txt
-	@pytest tests.py
+test t: $(VIRTUAL_ENV)
+	@$(VIRTUAL_ENV)/bin/pytest tests.py
+
+.PHONY: example
+example: $(VIRTUAL_ENV)
+	@$(VIRTUAL_ENV)/bin/pip install uvicorn asgi-tools
+	@$(VIRTUAL_ENV)/bin/uvicorn --port 5000 example:app
+

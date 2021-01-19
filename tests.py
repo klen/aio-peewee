@@ -1,17 +1,14 @@
-import asyncio as aio
-
 import peewee as pw
 import pytest
+from anyio import create_task_group, sleep
 
 
-def test_setup():
-    assert True
-
-
-def test_package():
-    from aiopeewee import version
-
-    assert version
+@pytest.fixture(params=[
+    pytest.param('asyncio'),
+    pytest.param('trio'),
+], autouse=True)
+def anyio_backend(request):
+    return request.param
 
 
 def test_connect():
@@ -55,7 +52,6 @@ def test_connect():
     assert isinstance(db, pw.SqliteDatabase)
 
 
-@pytest.mark.asyncio
 async def test_basic():
     from aiopeewee import db_url, _AsyncConnectionState, SqliteDatabaseAsync
 
@@ -69,53 +65,64 @@ async def test_basic():
     assert c1 is c2
     assert db._state.conn
 
-    await db.close_async()
+    db.close()
     assert not db._state.conn
 
     async with db:
         assert db._state.conn != c1
 
 
-@pytest.mark.asyncio
 async def test_pool():
     from aiopeewee import db_url, PooledSqliteDatabaseAsync, pool
 
     db = db_url.connect('sqlite+pool+async:///:memory:', max_connections=3, timeout=.1)
     assert db
     assert isinstance(db, PooledSqliteDatabaseAsync)
+    assert db._limiter is None
 
     db.connect()
     c0 = db.connection()
 
-    c1 = await aio.create_task(db.connect_async())
+    c1 = await db.connect_async()
+    assert db._limiter._value == 1
     assert c1 is not c0
-    c2 = await aio.create_task(db.connect_async())
+    c2 = await db.connect_async()
+    assert db._limiter._value == 0
     assert c2 is not c0
     assert c1 is not c2
 
     with pytest.raises(pool.MaxConnectionsExceeded):
         await db.connect_async()
 
-    assert not len(db._waiters)
+    assert db._limiter._value == 0
 
     db.close_all()
-    c3 = await aio.create_task(db.connect_async())
+    assert db._limiter._value == 3
+
+    c3 = await db.connect_async()
     assert c3 is not c1
     assert c3 is not c2
 
     db.close_all()
+    assert db._limiter._value == 3
 
     async def connect():
         await db.connect_async()
-        await aio.sleep(.02)
+        await sleep(.02)
         db.close()
-        return True
+        results.append(True)
 
-    connects = await aio.gather(connect(), connect(), connect(), connect(), connect())
-    assert all(connects)
+    results = []
+    async with create_task_group() as tg:
+        await tg.spawn(connect)
+        await tg.spawn(connect)
+        await tg.spawn(connect)
+        await tg.spawn(connect)
+        await tg.spawn(connect)
+
+    assert all(results)
 
 
-@pytest.mark.asyncio
 async def test_sqlite():
     from aiopeewee import db_url
 
@@ -125,11 +132,10 @@ async def test_sqlite():
         async with db:
             return db.execute_sql('select 42').fetchone()
 
-    res, = await aio.Task(middleware())
+    res, = await middleware()
     assert res == 42
 
 
-@pytest.mark.asyncio
 async def test_pw_task():
     pass
 

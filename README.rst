@@ -3,7 +3,7 @@ aio-peewee
 
 .. _description:
 
-aio-peewee -- Use Peewee with async framework
+aio-peewee -- Peewee support for async frameworks (Asyncio_, Trio_)
 
 .. _badges:
 
@@ -23,9 +23,9 @@ your asyncio based libraries correctly.
 Features
 ========
 
-- Tasks Safety. The library tracks of the connection state using
-  asyncio.Task-local storage, making the Peewee Database object safe to use
-  with multiple tasks inside a loop.
+- Tasks Safety. The library tracks of the connection state using Task-local
+  storage, making the Peewee Database object safe to use with multiple tasks
+  inside a loop.
 - Async support for connections. Connect to database asyncroniously
 - Async support for Peewee Connections Pool
 
@@ -70,6 +70,7 @@ QuickStart
 Usage
 =====
 
+
 Initialization
 --------------
 
@@ -80,8 +81,8 @@ Initialization
     db = PostgresqlDatabaseAsync('my_app', user='app', password='db_password', host='10.1.0.8', port=3306)
 
 
-Async Connect/Close
--------------------
+Async Connect
+-------------
 
 .. code:: python
 
@@ -89,7 +90,7 @@ Async Connect/Close
    async def main():
         await db.connect_async()
         # ...
-        await db.close_async()
+        db.close()
 
     # Context manager
    async def main():
@@ -126,6 +127,44 @@ Database URL
     db9 = db_url.connect('sqliteexc+pool+async://localhost/db', **db_params)
 
 
+ASGI Middleware
+---------------
+
+.. code:: python
+
+    import datetime as dt
+
+    from asgi_tools import App
+    from aiopeewee import PeeweeASGIPlugin
+    import peewee as pw
+
+
+    db = PeeweeASGIPlugin(url='sqlite+async:///db.sqlite')
+
+
+    @db.register
+    class Visit(pw.Model):
+        created = pw.DateTimeField(default=dt.datetime.utcnow())
+        address = pw.CharField()
+
+
+    db.create_tables()
+
+
+    app = App()
+
+
+    @app.route('/')
+    async def visits_json(request):
+        """Store the visit and load latest 10 visits."""
+        Visit.create(address=request.client[0])
+        return [{
+            'id': v.id, 'address': v.address, 'timestamp': round(v.created.timestamp()),
+        } for v in Visit.select().order_by(Visit.id.desc()).limit(10)]
+
+
+    app = db.middleware(app)
+
 
 .. _bugtracker:
 
@@ -155,6 +194,8 @@ Licensed under a `MIT license`_.
 
 
 .. _klen: https://github.com/klen
+.. _Asyncio: https://docs.python.org/3/library/asyncio.html
+.. _Trio: https://trio.readthedocs.io/en/stable/index.html
 
 .. _MIT license: http://opensource.org/licenses/MIT
 

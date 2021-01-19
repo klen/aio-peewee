@@ -1,16 +1,22 @@
 """Support Peewee ORM with asyncio."""
 
-import asyncio as aio
+import asyncio
 from contextvars import ContextVar
-from collections import deque
 
 import peewee as pw
-from async_timeout import timeout
+from anyio import fail_after
 from playhouse import db_url, pool, cockroachdb as crdb
 from playhouse.sqlite_ext import SqliteExtDatabase
+from sniffio import current_async_library
 
 
-version = "0.0.6"
+try:
+    import trio
+except ImportError:
+    trio = None
+
+
+__version__ = "0.0.6"
 
 _ctx = {
     'closed': ContextVar('closed', default=None),
@@ -36,7 +42,6 @@ class DatabaseAsync:
         """Initialize the state."""
         self._state = _AsyncConnectionState()
         self._lock = pw._NoopLock()
-        self._aiolock = aio.Lock()
         super(DatabaseAsync, self).init(database, **kwargs)
 
     async def __aenter__(self):
@@ -52,7 +57,7 @@ class DatabaseAsync:
             ctx.__exit__(exc_type, exc_val, exc_tb)
         finally:
             if not self._state.ctx:
-                await self.close_async()
+                self.close()
 
     async def connect_async(self, reuse_if_open=False):
         """Get a connection."""
@@ -60,48 +65,48 @@ class DatabaseAsync:
             self._state.reset()
 
         if self.is_closed():
-            async with self._aiolock:
-                self.connect()
+            self.connect()
 
         return self._state.conn
-
-    async def close_async(self):
-        """Close the current connection."""
-        async with self._aiolock:
-            return self.close()
 
 
 class PooledDatabaseAsync(DatabaseAsync):
     """Base integface for async databases with connection pooling."""
 
     def init(self, database, **kwargs):
-        """Prepare the pool."""
-        self._waiters = deque()
+        """Prepare the limiter."""
+        self._limiter = None
         super(PooledDatabaseAsync, self).init(database, **kwargs)
 
     async def connect_async(self, reuse_if_open=False):
         """Catch a connection asyncrounosly."""
-        if len(self._in_use) >= self._max_connections:
-            fut = aio.Future()
-            self._waiters.append(fut)
-            try:
-                async with timeout(self._wait_timeout):
-                    await fut
+        if self._limiter is None:
+            self._limiter = _create_semaphore(self._max_connections)
+            self._limiter._value = max(0, self._max_connections - len(self._in_use))
 
-            except aio.TimeoutError:
-                self._waiters.remove(fut)
-                raise pool.MaxConnectionsExceeded(
-                    'Max connections exceeded, timed out attempting to connect.')
+        try:
+            async with fail_after(self._wait_timeout):
+                await self._limiter.acquire()
+
+        except TimeoutError:
+            raise pool.MaxConnectionsExceeded(
+                'Max connections exceeded, timed out attempting to connect.')
 
         return await super().connect_async(reuse_if_open=reuse_if_open)
 
+    def _connect(self):
+        """Fix limiter for sync connections."""
+        conn = super(PooledDatabaseAsync, self)._connect()
+        if self._limiter:
+            self._limiter._value = max(0, self._max_connections - len(self._in_use))
+
+        return conn
+
     def _close(self, conn, close_conn=False):
+        """Release the limiter."""
         super(PooledDatabaseAsync, self)._close(conn, close_conn=close_conn)
-        try:
-            waiter = self._waiters.popleft()
-            waiter.set_result(True)
-        except IndexError:
-            pass
+        if self._limiter and self._limiter._value < self._max_connections:
+            self._limiter.release()
 
 
 class PostgresqlDatabaseAsync(DatabaseAsync, pw.PostgresqlDatabase):
@@ -166,10 +171,13 @@ class PeeweeASGIPlugin:
 
     def __init__(self, **options):
         """Initialize the plugin."""
-        self.config = dict(self.defaults, *options)
+        self.config = dict(self.defaults, **options)
         self.models = {}
         self.database = db_url.connect(
             self.config['url'], **self.config['connection_params'])
+
+    def __getattr__(self, name):
+        return getattr(self.database, name)
 
     async def shutdown(self):
         """Shutdown the database."""
@@ -185,7 +193,7 @@ class PeeweeASGIPlugin:
                 return await app(scope, receive, send)
 
             finally:
-                await self.database.close_async()
+                self.database.close()
 
         return process
 
@@ -198,12 +206,24 @@ class PeeweeASGIPlugin:
 
         return cls
 
-    def conftest(self):
-        """Integration with tests."""
+    def create_tables(self, **options):
+        """Create tables for the registered models."""
         for model in self.models.values():
-            try:
-                model.create_table()
-            except pw.OperationalError:
-                pass
+            model.create_table(**options)
+
+
+def _create_event():
+    """Create async event."""
+    if current_async_library() == 'trio':
+        return trio.Event()
+
+    return asyncio.Event()
+
+
+def _create_semaphore(value):
+    if current_async_library() == 'trio':
+        return trio.Semaphore(value)
+
+    return asyncio.Semaphore(value)
 
 # pylama: ignore=D
