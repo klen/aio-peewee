@@ -51,6 +51,9 @@ def test_connect():
     db = db_url.connect('sqlite+pool+async://')
     assert isinstance(db, pw.SqliteDatabase)
 
+    assert db_url.schemes['sqliteext+async']
+    assert db_url.schemes['sqliteext+pool+async']
+
 
 async def test_basic():
     from aiopeewee import db_url, _AsyncConnectionState, SqliteDatabaseAsync

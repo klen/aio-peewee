@@ -157,8 +157,8 @@ db_url.schemes['postgres+async'] = db_url.schemes['postgresql+async'] = Postgres
 db_url.schemes['postgres+pool+async'] = db_url.schemes['postgresql+pool+async'] = PooledPostgresqlDatabaseAsync  # noqa
 db_url.schemes['sqlite+async'] = SqliteDatabaseAsync
 db_url.schemes['sqlite+pool+async'] = PooledSqliteDatabaseAsync
-db_url.schemes['sqliteexc+async'] = SqliteExtDatabaseAsync
-db_url.schemes['sqliteexc+pool+async'] = PooledSqliteExtDatabaseAsync
+db_url.schemes['sqliteext+async'] = SqliteExtDatabaseAsync
+db_url.schemes['sqliteext+pool+async'] = PooledSqliteExtDatabaseAsync
 
 
 class PeeweeASGIPlugin:
