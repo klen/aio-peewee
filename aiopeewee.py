@@ -41,7 +41,6 @@ class DatabaseAsync:
     def init(self, database, **kwargs):
         """Initialize the state."""
         self._state = _AsyncConnectionState()
-        self._lock = pw._NoopLock()
         super(DatabaseAsync, self).init(database, **kwargs)
 
     async def __aenter__(self):
