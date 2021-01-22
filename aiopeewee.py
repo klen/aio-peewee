@@ -43,6 +43,11 @@ class DatabaseAsync:
         self._state = _AsyncConnectionState()
         super(DatabaseAsync, self).init(database, **kwargs)
 
+    async def connect_async(self, reuse_if_open=False):
+        """For purposes of compatability."""
+        self.connect(reuse_if_open=reuse_if_open)
+        return self._state.conn
+
     async def __aenter__(self):
         """Enter to async context."""
         await self.connect_async(reuse_if_open=True)
@@ -58,16 +63,6 @@ class DatabaseAsync:
             if not self._state.ctx:
                 self.close()
 
-    async def connect_async(self, reuse_if_open=False):
-        """Get a connection."""
-        if not reuse_if_open:
-            self._state.reset()
-
-        if self.is_closed():
-            self.connect()
-
-        return self._state.conn
-
 
 class PooledDatabaseAsync(DatabaseAsync):
     """Base integface for async databases with connection pooling."""
@@ -79,6 +74,9 @@ class PooledDatabaseAsync(DatabaseAsync):
 
     async def connect_async(self, reuse_if_open=False):
         """Catch a connection asyncrounosly."""
+        if reuse_if_open and not self.is_closed():
+            return self._state.conn
+
         if self._limiter is None:
             self._limiter = _create_semaphore(self._max_connections)
             self._limiter._value = max(0, self._max_connections - len(self._in_use))
@@ -91,7 +89,8 @@ class PooledDatabaseAsync(DatabaseAsync):
             raise pool.MaxConnectionsExceeded(
                 'Max connections exceeded, timed out attempting to connect.')
 
-        return await super().connect_async(reuse_if_open=reuse_if_open)
+        self.connect(reuse_if_open=reuse_if_open)
+        return self._state.conn
 
     def _connect(self):
         """Fix limiter for sync connections."""

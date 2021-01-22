@@ -76,7 +76,7 @@ async def test_basic():
 
 
 async def test_pool():
-    from aiopeewee import db_url, PooledSqliteDatabaseAsync, pool
+    from aiopeewee import db_url, PooledSqliteDatabaseAsync
 
     db = db_url.connect('sqlite+pool+async:///:memory:', max_connections=3, timeout=.1)
     assert db
@@ -86,34 +86,16 @@ async def test_pool():
     db.connect()
     c0 = db.connection()
 
-    c1 = await db.connect_async()
-    assert db._limiter._value == 1
-    assert c1 is not c0
-    c2 = await db.connect_async()
-    assert db._limiter._value == 0
-    assert c2 is not c0
-    assert c1 is not c2
-
-    with pytest.raises(pool.MaxConnectionsExceeded):
-        await db.connect_async()
-
-    assert db._limiter._value == 0
+    c1 = await db.connect_async(True)
+    assert c1 is c0
 
     db.close_all()
-    assert db._limiter._value == 3
-
-    c3 = await db.connect_async()
-    assert c3 is not c1
-    assert c3 is not c2
-
-    db.close_all()
-    assert db._limiter._value == 3
 
     async def connect():
-        await db.connect_async()
+        conn = await db.connect_async()
         await sleep(.02)
         db.close()
-        results.append(True)
+        results.append(conn)
 
     results = []
     async with create_task_group() as tg:
@@ -124,6 +106,8 @@ async def test_pool():
         await tg.spawn(connect)
 
     assert all(results)
+    assert len(set(results)) == 3
+    assert db._limiter._value == 3
 
 
 async def test_sqlite():
@@ -137,10 +121,6 @@ async def test_sqlite():
 
     res, = await middleware()
     assert res == 42
-
-
-async def test_pw_task():
-    pass
 
 
 # TODO: transactions, context

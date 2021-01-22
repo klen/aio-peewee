@@ -3,7 +3,7 @@ aio-peewee
 
 .. _description:
 
-aio-peewee -- Peewee support for async frameworks (Asyncio_, Trio_)
+**aio-peewee** -- Peewee support for async frameworks (Asyncio_, Trio_)
 
 .. _badges:
 
@@ -15,8 +15,10 @@ aio-peewee -- Peewee support for async frameworks (Asyncio_, Trio_)
     :target: https://pypi.org/project/aio-peewee/
     :alt: PYPI Version
 
-The library doesn't make peewee work async, but allows you to use Peewee with
-your asyncio based libraries correctly.
+.. _important:
+
+    The library doesn't make peewee work async, but allows you to use Peewee with
+    your asyncio based libraries correctly.
 
 .. _features:
 
@@ -26,8 +28,7 @@ Features
 - Tasks Safety. The library tracks of the connection state using Task-local
   storage, making the Peewee Database object safe to use with multiple tasks
   inside a loop.
-- Async support for connections. Connect to database asyncroniously
-- Async support for Peewee Connections Pool
+- Async management of connections for Peewee Connections Pool
 
 .. _contents:
 
