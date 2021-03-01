@@ -15,6 +15,10 @@ aio-peewee
     :target: https://pypi.org/project/aio-peewee/
     :alt: PYPI Version
 
+.. image:: https://img.shields.io/pypi/pyversions/aio-peewee
+    :target: https://pypi.org/project/aio-peewee/
+    :alt: Python Versions
+
 .. _important:
 
     The library doesn't make peewee work async, but allows you to use Peewee with
