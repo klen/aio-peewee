@@ -1,8 +1,12 @@
 import peewee as pw
 import pytest
+from curio.task import ContextTask
 
 
-@pytest.fixture(params=['asyncio', 'trio'], autouse=True)
+@pytest.fixture(params=[
+    'asyncio', 'trio',
+    pytest.param(('curio', {'taskcls': ContextTask}), id='curio'),
+], autouse=True)
 def aiolib(request):
     return request.param
 
@@ -78,7 +82,6 @@ async def test_pool():
     db = db_url.connect('sqlite+pool+async:///:memory:', max_connections=3, timeout=.1)
     assert db
     assert isinstance(db, PooledSqliteDatabaseAsync)
-    assert db._limiter is None
 
     db.connect()
     c0 = db.connection()
@@ -91,7 +94,7 @@ async def test_pool():
     async def connect():
         conn = await db.connect_async()
         await aio_sleep(.02)
-        db.close()
+        await db.close_async()
         return conn
 
     results = await aio_wait(
@@ -104,7 +107,7 @@ async def test_pool():
 
     assert all(results)
     assert len(set(results)) == 3
-    assert db._limiter._value == 3
+    assert not db._waiters
 
 
 async def test_sqlite():
@@ -118,6 +121,27 @@ async def test_sqlite():
 
     res, = await middleware()
     assert res == 42
+
+
+async def test_asgi():
+    from aiopeewee import PeeweeASGIPlugin
+    from asgi_tools import App
+    from asgi_tools.tests import ASGITestClient
+
+    app = App(debug=True)
+    client = ASGITestClient(app)
+    db = PeeweeASGIPlugin(url='sqlite+async:///:memory:')
+    app.middleware(db.middleware)
+
+    @app.route('/')
+    async def sql(request):
+        result, = db.execute_sql(f"select { request.url.query['num'] }").fetchone()
+        return result
+
+    res = await client.get('/', query={'num': 42})
+    assert res.status_code == 200
+    assert await res.json() == 42
+
 
 
 # TODO: transactions, context

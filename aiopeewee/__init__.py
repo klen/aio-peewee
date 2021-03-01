@@ -2,11 +2,13 @@
 
 import typing as t
 from contextvars import ContextVar
+from collections import deque
+from inspect import isawaitable
 
 import peewee as pw
 from playhouse import db_url, pool, cockroachdb as crdb
 from playhouse.sqlite_ext import SqliteExtDatabase
-from ._compat import aio_semaphore, aio_wait, aio_sleep, FIRST_COMPLETED
+from ._compat import aio_wait, aio_sleep, aio_event, FIRST_COMPLETED
 
 
 try:
@@ -27,25 +29,29 @@ _ctx = {
 
 class _AsyncConnectionState(pw._ConnectionState):
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: t.Any):
         _ctx[name].set(value)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> t.Any:
         return _ctx[name].get()
 
 
 class DatabaseAsync:
     """Base interface for async databases."""
 
-    def init(self, database, **kwargs):
+    def init(self, database: str, **kwargs):
         """Initialize the state."""
         self._state = _AsyncConnectionState()
         super(DatabaseAsync, self).init(database, **kwargs)
 
-    async def connect_async(self, reuse_if_open=False):
+    async def connect_async(self, reuse_if_open: bool = False) -> t.Any:
         """For purposes of compatability."""
         self.connect(reuse_if_open=reuse_if_open)
         return self._state.conn
+
+    async def close_async(self):
+        """Close the current connection."""
+        self.close()
 
     async def __aenter__(self):
         """Enter to async context."""
@@ -60,53 +66,55 @@ class DatabaseAsync:
             ctx.__exit__(exc_type, exc_val, exc_tb)
         finally:
             if not self._state.ctx:
-                self.close()
+                await self.close_async()
 
 
 class PooledDatabaseAsync(DatabaseAsync):
     """Base integface for async databases with connection pooling."""
 
-    def init(self, database, **kwargs):
+    def init(self, database: str, **kwargs):
         """Prepare the limiter."""
-        self._limiter = None
+        self._waiters = deque()
         super(PooledDatabaseAsync, self).init(database, **kwargs)
 
-    async def connect_async(self, reuse_if_open=False):
+    async def connect_async(self, reuse_if_open: bool = False) -> t.Any:
         """Catch a connection asyncrounosly."""
         if reuse_if_open and not self.is_closed():
             return self._state.conn
 
-        if self._limiter is None:
-            self._limiter = aio_semaphore(self._max_connections)
-            self._limiter._value = max(0, self._max_connections - len(self._in_use))
+        if len(self._in_use) >= self._max_connections:
+            waiter = aio_event()
+            self._waiters.append(waiter)
+            try:
+                await aio_wait(
+                    waiter.wait(),
+                    _raise_timeout(self._wait_timeout),
+                    strategy=FIRST_COMPLETED,
+                )
 
-        try:
-            await aio_wait(
-                self._limiter.acquire(),
-                _raise_timeout(self._wait_timeout),
-                strategy=FIRST_COMPLETED,
-            )
-
-        except TimeoutError:
-            raise pool.MaxConnectionsExceeded(
-                'Max connections exceeded, timed out attempting to connect.')
+            except TimeoutError:
+                raise pool.MaxConnectionsExceeded(
+                    'Max connections exceeded, timed out attempting to connect.')
 
         self.connect(reuse_if_open=reuse_if_open)
         return self._state.conn
 
-    def _connect(self):
-        """Fix limiter for sync connections."""
-        conn = super(PooledDatabaseAsync, self)._connect()
-        if self._limiter:
-            self._limiter._value = max(0, self._max_connections - len(self._in_use))
+    async def _release(self):
+        for _ in range(self._max_connections - len(self._in_use)):
+            if not self._waiters:
+                break
+            waiter = self._waiters.popleft()
+            coro = waiter.set()
+            if coro and isawaitable(coro):
+                await coro
 
-        return conn
+    async def close_all_async(self):
+        super(PooledDatabaseAsync, self).close_all()
+        await self._release()
 
-    def _close(self, conn, close_conn=False):
-        """Release the limiter."""
-        super(PooledDatabaseAsync, self)._close(conn, close_conn=close_conn)
-        if self._limiter and self._limiter._value < self._max_connections:
-            self._limiter.release()
+    async def close_async(self):
+        super(PooledDatabaseAsync, self).close()
+        await self._release()
 
 
 class PostgresqlDatabaseAsync(DatabaseAsync, pw.PostgresqlDatabase):
@@ -193,7 +201,7 @@ class PeeweeASGIPlugin:
                 return await app(scope, receive, send)
 
             finally:
-                self.database.close()
+                await self.database.close_async()
 
         return process
 

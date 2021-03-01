@@ -39,15 +39,15 @@ def aio_sleep(seconds: float = 0) -> t.Awaitable:
     return asyncio.sleep(seconds)
 
 
-def aio_semaphore(value):
+def aio_event():
     """Create async event."""
     if trio and current_async_library() == 'trio':
-        return trio.Semaphore(value)
+        return trio.Event()
 
     if curio and current_async_library() == 'curio':
-        return curio.Semaphore(value)
+        return curio.Event()
 
-    return asyncio.Semaphore(value)
+    return asyncio.Event()
 
 
 async def aio_wait(*aws: t.Awaitable, strategy: str = ALL_COMPLETED) -> t.Any:
@@ -78,7 +78,7 @@ async def aio_wait(*aws: t.Awaitable, strategy: str = ALL_COMPLETED) -> t.Any:
         async with curio.TaskGroup(wait=wait) as g:
             [await g.spawn(aw) for aw in aws]
 
-        return g.result
+        return g.results if strategy == ALL_COMPLETED else g.result
 
     aws = tuple(create_task(aw) if iscoroutine(aw) else aw for aw in aws)
     done, pending = await asyncio.wait(aws, return_when=strategy)

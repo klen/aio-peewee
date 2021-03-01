@@ -3,7 +3,7 @@ aio-peewee
 
 .. _description:
 
-**aio-peewee** -- Peewee support for async frameworks (Asyncio_, Trio_)
+**aio-peewee** -- Peewee support for async frameworks (Asyncio_, Trio_, Curio_)
 
 .. _badges:
 
@@ -167,6 +167,14 @@ ASGI Middleware
     app = db.middleware(app)
 
 
+Curio
+-----
+
+``aio-peewee`` uses ``contextvars`` to store db connections. So you have to
+enable ``contextvars`` for Curio:
+https://curio.readthedocs.io/en/latest/howto.html#how-do-you-use-contextvars
+
+
 .. _bugtracker:
 
 Bug tracker
@@ -197,6 +205,7 @@ Licensed under a `MIT license`_.
 .. _klen: https://github.com/klen
 .. _Asyncio: https://docs.python.org/3/library/asyncio.html
 .. _Trio: https://trio.readthedocs.io/en/stable/index.html
+.. _Curio: https://github.com/dabeaz/curio
 
 .. _MIT license: http://opensource.org/licenses/MIT
 
