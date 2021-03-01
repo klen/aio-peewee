@@ -53,6 +53,10 @@ $(VIRTUAL_ENV): setup.cfg
 test t: $(VIRTUAL_ENV)
 	@$(VIRTUAL_ENV)/bin/pytest tests.py
 
+.PHONY: mypy
+mypy: $(VIRTUAL_ENV)
+	@$(VIRTUAL_ENV)/bin/mypy aiopeewee
+
 .PHONY: example
 example: $(VIRTUAL_ENV)
 	@$(VIRTUAL_ENV)/bin/pip install uvicorn asgi-tools

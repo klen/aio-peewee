@@ -39,10 +39,13 @@ class _AsyncConnectionState(pw._ConnectionState):
 class DatabaseAsync:
     """Base interface for async databases."""
 
+    if t.TYPE_CHECKING:
+        connect: t.Callable
+
     def init(self, database: str, **kwargs):
         """Initialize the state."""
         self._state = _AsyncConnectionState()
-        super(DatabaseAsync, self).init(database, **kwargs)
+        super(DatabaseAsync, self).init(database, **kwargs)  # type: ignore
 
     async def connect_async(self, reuse_if_open: bool = False) -> t.Any:
         """For purposes of compatability."""
@@ -72,9 +75,16 @@ class DatabaseAsync:
 class PooledDatabaseAsync(DatabaseAsync):
     """Base integface for async databases with connection pooling."""
 
+    if t.TYPE_CHECKING:
+        _in_use: t.List
+        _max_connections: int
+        _wait_timeout: float
+        connect: t.Callable
+        is_closed: t.Callable[..., bool]
+
     def init(self, database: str, **kwargs):
         """Prepare the limiter."""
-        self._waiters = deque()
+        self._waiters: t.Deque = deque()
         super(PooledDatabaseAsync, self).init(database, **kwargs)
 
     async def connect_async(self, reuse_if_open: bool = False) -> t.Any:
