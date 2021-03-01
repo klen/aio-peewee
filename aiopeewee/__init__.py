@@ -17,7 +17,7 @@ except ImportError:
     trio = None
 
 
-__version__ = "0.1.6"
+__version__ = "0.2.0"
 
 _ctx = {
     'closed': ContextVar('closed', default=None),
