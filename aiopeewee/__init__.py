@@ -119,8 +119,9 @@ class PooledDatabaseAsync(DatabaseAsync):
                 await coro
 
     async def close_all_async(self):
-        super(PooledDatabaseAsync, self).close_all()
-        await self._release()
+        while self._waiters:
+            super(PooledDatabaseAsync, self).close_all()
+            await self._release()
 
     async def close_async(self):
         super(PooledDatabaseAsync, self).close()
