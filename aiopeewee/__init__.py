@@ -1,13 +1,12 @@
 """Support Peewee ORM with asyncio."""
 
-import asyncio
+import typing as t
 from contextvars import ContextVar
 
 import peewee as pw
-from anyio import fail_after
 from playhouse import db_url, pool, cockroachdb as crdb
 from playhouse.sqlite_ext import SqliteExtDatabase
-from sniffio import current_async_library
+from ._compat import aio_semaphore, aio_wait, aio_sleep, FIRST_COMPLETED
 
 
 try:
@@ -78,12 +77,15 @@ class PooledDatabaseAsync(DatabaseAsync):
             return self._state.conn
 
         if self._limiter is None:
-            self._limiter = _create_semaphore(self._max_connections)
+            self._limiter = aio_semaphore(self._max_connections)
             self._limiter._value = max(0, self._max_connections - len(self._in_use))
 
         try:
-            async with fail_after(self._wait_timeout):
-                await self._limiter.acquire()
+            await aio_wait(
+                self._limiter.acquire(),
+                _raise_timeout(self._wait_timeout),
+                strategy=FIRST_COMPLETED,
+            )
 
         except TimeoutError:
             raise pool.MaxConnectionsExceeded(
@@ -210,18 +212,8 @@ class PeeweeASGIPlugin:
             model.create_table(**options)
 
 
-def _create_event():
-    """Create async event."""
-    if current_async_library() == 'trio':
-        return trio.Event()
-
-    return asyncio.Event()
-
-
-def _create_semaphore(value):
-    if current_async_library() == 'trio':
-        return trio.Semaphore(value)
-
-    return asyncio.Semaphore(value)
+async def _raise_timeout(timeout: t.Union[int, float]):
+    await aio_sleep(timeout)
+    raise TimeoutError('Timeout occuirs.')
 
 # pylama: ignore=D

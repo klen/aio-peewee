@@ -46,7 +46,7 @@ upload: clean
 
 $(VIRTUAL_ENV): setup.cfg
 	@[ -d $(VIRTUAL_ENV) ] || python -m venv $(VIRTUAL_ENV)
-	@$(VIRTUAL_ENV)/bin/pip install -e .[test]
+	@$(VIRTUAL_ENV)/bin/pip install -e .[tests]
 	@touch $(VIRTUAL_ENV)
 
 .PHONY: test

@@ -1,13 +1,9 @@
 import peewee as pw
 import pytest
-from anyio import create_task_group, sleep
 
 
-@pytest.fixture(params=[
-    pytest.param('asyncio'),
-    pytest.param('trio'),
-], autouse=True)
-def anyio_backend(request):
+@pytest.fixture(params=['asyncio', 'trio'], autouse=True)
+def aiolib(request):
     return request.param
 
 
@@ -77,6 +73,7 @@ async def test_basic():
 
 async def test_pool():
     from aiopeewee import db_url, PooledSqliteDatabaseAsync
+    from aiopeewee._compat import aio_sleep, aio_wait
 
     db = db_url.connect('sqlite+pool+async:///:memory:', max_connections=3, timeout=.1)
     assert db
@@ -93,17 +90,17 @@ async def test_pool():
 
     async def connect():
         conn = await db.connect_async()
-        await sleep(.02)
+        await aio_sleep(.02)
         db.close()
-        results.append(conn)
+        return conn
 
-    results = []
-    async with create_task_group() as tg:
-        await tg.spawn(connect)
-        await tg.spawn(connect)
-        await tg.spawn(connect)
-        await tg.spawn(connect)
-        await tg.spawn(connect)
+    results = await aio_wait(
+        connect(),
+        connect(),
+        connect(),
+        connect(),
+        connect(),
+    )
 
     assert all(results)
     assert len(set(results)) == 3
