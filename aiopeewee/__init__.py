@@ -11,12 +11,6 @@ from playhouse.sqlite_ext import SqliteExtDatabase
 from ._compat import aio_wait, aio_sleep, aio_event, FIRST_COMPLETED
 
 
-try:
-    import trio
-except ImportError:
-    trio = None
-
-
 __version__ = "0.2.4"
 
 _ctx = {
@@ -222,7 +216,6 @@ class PeeweeASGIPlugin:
             self.models[cls._meta.table_name] = cls
 
         cls._meta.database = self.database
-
         return cls
 
     def create_tables(self, **options):

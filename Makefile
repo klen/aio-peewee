@@ -1,4 +1,5 @@
 VERSION	?= minor
+VIRTUAL_ENV ?= env
 
 .PHONY: version
 version:
