@@ -14,7 +14,7 @@ from ._compat import aio_wait, aio_sleep, aio_event, FIRST_COMPLETED
 __version__ = "0.2.5"
 
 _ctx = {
-    'closed': ContextVar('closed', default=None),
+    'closed': ContextVar('closed', default=True),
     'conn': ContextVar('conn', default=None),
     'ctx': ContextVar('ctx', default=None),
     'transactions': ContextVar('transactions', default=None),
@@ -48,6 +48,9 @@ class DatabaseAsync:
 
     async def close_async(self):
         """Close the current connection."""
+        if self.in_transaction():
+            raise pw.OperationalError('Attempting to close database while transaction is open.')
+
         self.close()
 
     async def __aenter__(self):
@@ -118,6 +121,8 @@ class PooledDatabaseAsync(DatabaseAsync):
             await self._release()
 
     async def close_async(self):
+        if self.in_transaction():
+            raise pw.OperationalError('Attempting to close database while transaction is open.')
         super(PooledDatabaseAsync, self).close()
         await self._release()
 
