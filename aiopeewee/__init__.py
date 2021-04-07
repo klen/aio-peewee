@@ -11,7 +11,7 @@ from playhouse.sqlite_ext import SqliteExtDatabase
 from ._compat import aio_wait, aio_sleep, aio_event, FIRST_COMPLETED
 
 
-__version__ = "0.2.6"
+__version__ = "0.2.7"
 
 _ctx: t.Dict[str, ContextVar] = {
     'closed': ContextVar('closed', default=True),
