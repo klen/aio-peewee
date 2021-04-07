@@ -13,7 +13,7 @@ from ._compat import aio_wait, aio_sleep, aio_event, FIRST_COMPLETED
 
 __version__ = "0.2.6"
 
-_ctx = {
+_ctx: t.Dict[str, ContextVar] = {
     'closed': ContextVar('closed', default=True),
     'conn': ContextVar('conn', default=None),
     'ctx': ContextVar('ctx', default=None),
