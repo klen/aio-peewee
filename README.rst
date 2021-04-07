@@ -110,7 +110,7 @@ Connection Pooling
 
    from aiopeewee import PooledPostgresqlDatabaseAsync, PooledSqliteDatabaseAsync, PooledMySQLDatabaseAsync, PooledCockroachDatabaseAsync
 
-   db = PooledPostgresqlDatabase('my_database', max_connections=8, stale_timeout=300, user='postgres')
+   db = PooledPostgresqlDatabaseAsync('my_database', max_connections=8, stale_timeout=300, user='postgres')
 
 
 Database URL
