@@ -95,7 +95,7 @@ Async Connect
    async def main():
         await db.connect_async()
         # ...
-        db.close()
+        await db.close_async()
 
     # Context manager
    async def main():
