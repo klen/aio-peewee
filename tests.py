@@ -51,6 +51,8 @@ def test_connect():
     db = db_url.connect('sqlite+pool+async://')
     assert isinstance(db, pw.SqliteDatabase)
 
+    assert db_url.schemes['postgresext+async']
+    assert db_url.schemes['postgresext+pool+async'] 
     assert db_url.schemes['sqliteext+async']
     assert db_url.schemes['sqliteext+pool+async']
 

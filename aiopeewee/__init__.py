@@ -8,6 +8,7 @@ from inspect import isawaitable
 import peewee as pw
 from playhouse import db_url, pool, cockroachdb as crdb
 from playhouse.sqlite_ext import SqliteExtDatabase
+from playhouse.postgres_ext import PostgresqlExtDatabase
 from ._compat import aio_wait, aio_sleep, aio_event, FIRST_COMPLETED
 
 
@@ -131,7 +132,15 @@ class PostgresqlDatabaseAsync(DatabaseAsync, pw.PostgresqlDatabase):
     pass
 
 
+class PostgresqlExtDatabaseAsync(DatabaseAsync, PostgresqlExtDatabase):
+    pass
+
+
 class PooledPostgresqlDatabaseAsync(PooledDatabaseAsync, pool.PooledPostgresqlDatabase):
+    pass
+
+
+class PooledPostgresqlExtDatabaseAsync(PooledDatabaseAsync, pool.PooledPostgresqlExtDatabase):
     pass
 
 
@@ -172,7 +181,9 @@ db_url.schemes['cockroachdb+pool+async'] = db_url.schemes['crdb+pool+async'] = P
 db_url.schemes['mysql+async'] = MySQLDatabaseAsync
 db_url.schemes['mysql+pool+async'] = PooledMySQLDatabaseAsync
 db_url.schemes['postgres+async'] = db_url.schemes['postgresql+async'] = PostgresqlDatabaseAsync
+db_url.schemes['postgresext+async'] = db_url.schemes['postgresqlext+async'] = PostgresqlExtDatabaseAsync
 db_url.schemes['postgres+pool+async'] = db_url.schemes['postgresql+pool+async'] = PooledPostgresqlDatabaseAsync  # noqa
+db_url.schemes['postgresext+pool+async'] = db_url.schemes['postgresqlext+pool+async'] = PooledPostgresqlExtDatabaseAsync  # noqa
 db_url.schemes['sqlite+async'] = SqliteDatabaseAsync
 db_url.schemes['sqlite+pool+async'] = PooledSqliteDatabaseAsync
 db_url.schemes['sqliteext+async'] = SqliteExtDatabaseAsync
