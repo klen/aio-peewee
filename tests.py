@@ -11,6 +11,14 @@ def aiolib(request):
     return request.param
 
 
+@pytest.fixture
+def User():
+    return type('Model', (pw.Model,), {
+        'username': pw.CharField(),
+        'name': pw.CharField(null=True),
+    })
+
+
 def test_connect():
     from aiopeewee import db_url
     from playhouse import cockroachdb as crdb
@@ -52,7 +60,7 @@ def test_connect():
     assert isinstance(db, pw.SqliteDatabase)
 
     assert db_url.schemes['postgresext+async']
-    assert db_url.schemes['postgresext+pool+async'] 
+    assert db_url.schemes['postgresext+pool+async']
     assert db_url.schemes['sqliteext+async']
     assert db_url.schemes['sqliteext+pool+async']
 
@@ -123,6 +131,25 @@ async def test_sqlite():
 
     res, = await middleware()
     assert res == 42
+
+
+async def test_transactions(User):
+    from aiopeewee import db_url
+
+    db = db_url.connect('sqlite+async:///:memory:')
+    User._meta.database = db
+    User.create_table()
+
+    with db.atomic() as txn:
+        User.create(username='charlie')
+        with db.atomic() as txn2:
+            User.create(username='huey')
+            txn2.rollback()
+
+        assert User.select().count() == 1
+        assert User.get().username == 'charlie'
+
+        txn.rollback()
 
 
 async def test_asgi():
