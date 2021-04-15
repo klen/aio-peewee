@@ -1,14 +1,16 @@
 """Support Peewee ORM with asyncio."""
 
 import typing as t
-from contextvars import ContextVar
 from collections import deque
+from contextvars import ContextVar
 from inspect import isawaitable
 
 import peewee as pw
 from playhouse import db_url, pool, cockroachdb as crdb
-from playhouse.sqlite_ext import SqliteExtDatabase
 from playhouse.postgres_ext import PostgresqlExtDatabase
+from playhouse.sqlite_ext import SqliteExtDatabase
+
+from .transactions import _transaction_async, _atomic_async, _savepoint_async, _manual_async
 from ._compat import aio_wait, aio_sleep, aio_event, FIRST_COMPLETED
 
 
@@ -31,57 +33,6 @@ class _AsyncConnectionState(pw._ConnectionState):
         return _ctx[name].get()
 
 
-class _transaction_async(pw._transaction):
-
-    async def __aenter__(self):
-        """Enter to async context."""
-        return super().__enter__()
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit from async context."""
-        return super().__exit__(exc_type, exc_val, exc_tb)
-
-
-class _savepoint_async(pw._savepoint):
-
-    async def __aenter__(self):
-        """Enter to async context."""
-        return super().__enter__()
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit from async context."""
-        return super().__exit__(exc_type, exc_val, exc_tb)
-
-
-class _manual_async(pw._manual):
-
-    async def __aenter__(self):
-        """Enter to async context."""
-        return super().__enter__()
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit from async context."""
-        return super().__exit__(exc_type, exc_val, exc_tb)
-
-
-class _atomic_async(pw._atomic):
-
-    async def __aenter__(self):
-        """Enter to async context."""
-        if self.db.transaction_depth() == 0:
-            args, kwargs = self._transaction_args
-            self._helper = self.db.transaction(*args, **kwargs)
-        elif isinstance(self.db.top_transaction(), pw._manual):
-            raise ValueError('Cannot enter atomic commit block while in manual commit mode.')
-        else:
-            self._helper = self.db.savepoint()
-        return await self._helper.__aenter__()
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit from async context."""
-        await self._helper.__aexit__(exc_type, exc_val, exc_tb)
-
-
 class DatabaseAsync:
     """Base interface for async databases."""
 
@@ -92,18 +43,6 @@ class DatabaseAsync:
         """Initialize the state."""
         self._state = _AsyncConnectionState()
         super(DatabaseAsync, self).init(database, **kwargs)  # type: ignore
-
-    def transaction(self, *args, **kwargs):
-        return _transaction_async(self, *args, **kwargs)
-
-    def atomic(self, *args, **kwargs):
-        return _atomic_async(self, *args, **kwargs)
-
-    def savepoint(self, *args, **kwargs):
-        return _savepoint_async(self, *args, **kwargs)
-
-    def manual(self, *args, **kwargs):
-        return _manual_async(self, *args, **kwargs)
 
     async def connect_async(self, reuse_if_open: bool = False) -> t.Any:
         """For purposes of compatability."""
@@ -116,6 +55,18 @@ class DatabaseAsync:
             raise pw.OperationalError('Attempting to close database while transaction is open.')
 
         self.close()
+
+    def transaction_async(self, *args, **kwargs):
+        return _transaction_async(self, *args, **kwargs)
+
+    def atomic_async(self, *args, **kwargs):
+        return _atomic_async(self, *args, **kwargs)
+
+    def savepoint_async(self, *args, **kwargs):
+        return _savepoint_async(self, *args, **kwargs)
+
+    def manual_async(self, *args, **kwargs):
+        return _manual_async(self, *args, **kwargs)
 
     async def __aenter__(self):
         """Enter to async context."""
@@ -307,4 +258,4 @@ async def _raise_timeout(timeout: t.Union[int, float]):
     await aio_sleep(timeout)
     raise TimeoutError('Timeout occuirs.')
 
-# pylama: ignore=D
+# pylama: ignore=D,E501
