@@ -1,14 +1,16 @@
 """Support Peewee ORM with asyncio."""
 
 import typing as t
-from contextvars import ContextVar
 from collections import deque
+from contextvars import ContextVar
 from inspect import isawaitable
 
 import peewee as pw
 from playhouse import db_url, pool, cockroachdb as crdb
-from playhouse.sqlite_ext import SqliteExtDatabase
 from playhouse.postgres_ext import PostgresqlExtDatabase
+from playhouse.sqlite_ext import SqliteExtDatabase
+
+from .transactions import _transaction_async, _atomic_async, _savepoint_async, _manual_async
 from ._compat import aio_wait, aio_sleep, aio_event, FIRST_COMPLETED
 
 
@@ -53,6 +55,18 @@ class DatabaseAsync:
             raise pw.OperationalError('Attempting to close database while transaction is open.')
 
         self.close()
+
+    def transaction_async(self, *args, **kwargs):
+        return _transaction_async(self, *args, **kwargs)
+
+    def atomic_async(self, *args, **kwargs):
+        return _atomic_async(self, *args, **kwargs)
+
+    def savepoint_async(self, *args, **kwargs):
+        return _savepoint_async(self, *args, **kwargs)
+
+    def manual_async(self, *args, **kwargs):
+        return _manual_async(self, *args, **kwargs)
 
     async def __aenter__(self):
         """Enter to async context."""
@@ -244,4 +258,4 @@ async def _raise_timeout(timeout: t.Union[int, float]):
     await aio_sleep(timeout)
     raise TimeoutError('Timeout occuirs.')
 
-# pylama: ignore=D
+# pylama: ignore=D,E501

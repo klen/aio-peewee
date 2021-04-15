@@ -2,6 +2,12 @@ import peewee as pw
 import pytest
 from curio.task import ContextTask
 
+# Print all queries
+import logging
+logger = logging.getLogger('peewee')
+logger.addHandler(logging.StreamHandler())
+logger.setLevel(logging.DEBUG)
+
 
 @pytest.fixture(params=[
     'asyncio', 'trio',
@@ -136,6 +142,7 @@ async def test_sqlite():
 async def test_transactions(User):
     from aiopeewee import db_url
 
+    # Test sync transactions
     db = db_url.connect('sqlite+async:///:memory:')
     User._meta.database = db
     User.create_table()
@@ -143,6 +150,18 @@ async def test_transactions(User):
     with db.atomic() as txn:
         User.create(username='charlie')
         with db.atomic() as txn2:
+            User.create(username='huey')
+            txn2.rollback()
+
+        assert User.select().count() == 1
+        assert User.get().username == 'charlie'
+
+        txn.rollback()
+
+    # Test async transactions
+    async with db.atomic_async() as txn:
+        User.create(username='charlie')
+        with db.atomic_async() as txn2:
             User.create(username='huey')
             txn2.rollback()
 
