@@ -70,9 +70,9 @@ class DatabaseAsync:
 
     async def __aenter__(self):
         """Enter to async context."""
-        await self.connect_async(reuse_if_open=True)
+        conn = await self.connect_async(reuse_if_open=True)
         super().__enter__()
-        return self
+        return conn
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit from async context."""

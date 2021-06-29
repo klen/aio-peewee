@@ -87,8 +87,9 @@ async def test_basic():
     db.close()
     assert not db._state.conn
 
-    async with db:
-        assert db._state.conn != c1
+    async with db as conn:
+        assert conn == db._state.conn
+        assert conn != c1
 
 
 async def test_pool():
