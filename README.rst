@@ -1,6 +1,10 @@
 aio-peewee
 ##########
 
+.. note::
+
+    This package is deprecated. Please use the new ``peewee-aio`` package instead.
+
 .. _description:
 
 **aio-peewee** -- Peewee support for async frameworks (Asyncio_, Trio_, Curio_)
