@@ -4,7 +4,9 @@ aio-peewee
 DeprecationWarning
 -------------------
 
-**The package is deprecated. Please use 'peewee-aio' instead.**
+**The package is deprecated. Please use 'peewee-aio <https://github.com/klen/peewee-aio>' instead.**
+
+---
 
 .. _description:
 
