@@ -3,7 +3,7 @@ aio-peewee
 
 .. note::
 
-    This package is deprecated. Please use the new ``peewee-aio`` package instead.
+    **This package is deprecated. Please use the new ``peewee-aio`` package instead.**
 
 .. _description:
 
