@@ -1,9 +1,10 @@
 aio-peewee
 ##########
 
-.. note::
+DeprecationWarning
+-------------------
 
-    **This package is deprecated. Please use the new ``peewee-aio`` package instead.**
+**The package is deprecated. Please use 'peewee-aio' instead.**
 
 .. _description:
 
